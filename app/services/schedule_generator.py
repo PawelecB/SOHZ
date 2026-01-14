@@ -347,6 +347,18 @@ def generate_schedule(group_id, semester=None, resolved_conflicts=None, existing
                     
                     score = base_pref * w_pref * 2
                     
+                    # === LOAD BALANCING: Prefer days with fewer classes ===
+                    # Count ALL classes for this group on this day (across all subjects)
+                    group_day_load = sum(1 for e in schedule if e.group_id == assignment.group_id and e.week_number == week and e.day_of_week == day)
+                    # Heavy penalty for adding to already busy days - encourages spreading across all weekdays
+                    score -= group_day_load * 50
+                    
+                    # === MORNING PREFERENCE: Prefer earlier time slots ===
+                    # Slot 1 (8:00) = +60 bonus, Slot 7 (18:00) = 0 bonus
+                    # This makes algorithm prefer morning classes over evening ones
+                    morning_bonus = (8 - slot) * 10
+                    score += morning_bonus
+                    
                     # Teacher Gaps Analysis
                     t_occupancy = teacher_occupancy.get(assignment.teacher_id, set())
                     t_has_classes_today = False
