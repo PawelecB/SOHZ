@@ -1,0 +1,54 @@
+{% extends "dashboard/layout.html" %}
+
+{% block dashboard_content %}
+<div>
+    <div class="page-header">
+        <h1 class="page-title">🎓 Studenci</h1>
+        <p class="page-subtitle">Lista studentów w systemie</p>
+    </div>
+
+    <div class="card">
+        <div class="table-container">
+            <table class="table">
+                <thead>
+                    <tr>
+                        <th>Imię i nazwisko</th>
+                        <th>Email</th>
+                        <th>Grupa</th>
+                    </tr>
+                </thead>
+                <tbody id="students-tbody">
+                    <tr>
+                        <td colspan="3" class="text-center text-muted" style="padding: 2rem;">Ładowanie...</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    async function loadStudents() {
+        const res = await fetch('/api/users');
+        const users = await res.json();
+        const students = users.filter(u => u.role === 'STUDENT');
+        renderStudents(students);
+    }
+
+    function renderStudents(students) {
+        const tbody = document.getElementById('students-tbody');
+        if (students.length === 0) { tbody.innerHTML = '<tr><td colspan="3" class="text-center text-muted" style="padding: 2rem;">Brak studentów.</td></tr>'; return; }
+        tbody.innerHTML = students.map(s => `
+        <tr>
+            <td style="font-weight: 500;">${s.name}</td>
+            <td style="color: var(--text-secondary);">${s.email}</td>
+            <td>${s.group ? `<span class="badge badge-primary">${s.group.name}</span>` : '<span style="color: var(--text-muted);">—</span>'}</td>
+        </tr>
+    `).join('');
+    }
+
+    loadStudents();
+</script>
+{% endblock %}

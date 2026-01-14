@@ -1,0 +1,100 @@
+{% extends "dashboard/layout.html" %}
+
+{% block dashboard_content %}
+<div>
+    <div class="page-header">
+        <h1 class="page-title">👨‍🏫 Plany wykładowców</h1>
+        <p class="page-subtitle">Przeglądaj harmonogramy wykładowców</p>
+    </div>
+
+    <div class="card" style="margin-bottom: 1.5rem;">
+        <div class="form-group" style="margin-bottom: 0;">
+            <label class="label">Wybierz wykładowcę</label>
+            <select class="select" id="teacher-select" onchange="loadTeacherSchedule()">
+                <option value="">Wybierz wykładowcę...</option>
+            </select>
+        </div>
+    </div>
+
+    <div id="loading" class="loading" style="display: none;">
+        <div class="spinner"></div>
+    </div>
+    <div id="empty-state" class="card" style="display: none;">
+        <div class="empty-state">
+            <div class="empty-state-icon">📭</div>
+            <p class="empty-state-text">Wybierz wykładowcę, aby zobaczyć jego harmonogram.</p>
+        </div>
+    </div>
+
+    <div id="schedule-container" style="display: none;">
+        <div style="margin-bottom: 1rem;">
+            <div style="display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap;">
+                <button class="btn btn-sm btn-secondary" onclick="changeWeek(-1)" id="btn-prev">← Poprzedni</button>
+                <span style="font-weight: 600; min-width: 200px; text-align: center;" id="week-label">Tydzień 1</span>
+                <button class="btn btn-sm btn-secondary" onclick="changeWeek(1)" id="btn-next">Następny →</button>
+            </div>
+        </div>
+        <div class="card" style="padding: 1rem; overflow: auto;">
+            <div class="schedule-grid" style="grid-template-columns: auto repeat(5, 1fr);" id="schedule-grid"></div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    const DAYS = ['Poniedziałek', 'Wtorek', 'Środa', 'Czwartek', 'Piątek'];
+    const TIME_SLOTS = [{ slot: 1, label: '8:00 - 9:30' }, { slot: 2, label: '9:45 - 11:15' }, { slot: 3, label: '11:30 - 13:00' }, { slot: 4, label: '13:15 - 14:45' }, { slot: 5, label: '15:00 - 16:30' }, { slot: 6, label: '16:45 - 18:15' }, { slot: 7, label: '18:30 - 20:00' }];
+
+    let schedule = [], selectedWeek = 1;
+
+    async function loadTeachers() {
+        const res = await fetch('/api/teachers');
+        const teachers = await res.json();
+        const sel = document.getElementById('teacher-select');
+        teachers.forEach(t => { sel.innerHTML += `<option value="${t.id}">${t.name}</option>`; });
+        document.getElementById('empty-state').style.display = 'block';
+    }
+
+    async function loadTeacherSchedule() {
+        const teacherId = document.getElementById('teacher-select').value;
+        if (!teacherId) { document.getElementById('empty-state').style.display = 'block'; document.getElementById('schedule-container').style.display = 'none'; return; }
+
+        document.getElementById('loading').style.display = 'flex';
+        document.getElementById('empty-state').style.display = 'none';
+        document.getElementById('schedule-container').style.display = 'none';
+
+        const month = new Date().getMonth() + 1;
+        const semester = (month >= 3 && month <= 7) ? 'SUMMER' : 'WINTER';
+
+        const res = await fetch(`/api/schedule/teacher/${teacherId}?semester=${semester}`);
+        schedule = await res.json();
+
+        document.getElementById('loading').style.display = 'none';
+        document.getElementById('schedule-container').style.display = 'block';
+        renderSchedule();
+    }
+
+    function renderSchedule() {
+        document.getElementById('week-label').textContent = `Tydzień ${selectedWeek}`;
+        document.getElementById('btn-prev').disabled = selectedWeek <= 1;
+        document.getElementById('btn-next').disabled = selectedWeek >= 15;
+
+        let html = '<div class="schedule-header"></div>';
+        DAYS.forEach(d => { html += `<div class="schedule-header">${d}</div>`; });
+
+        TIME_SLOTS.forEach(ts => {
+            html += `<div class="schedule-time" style="font-size: 0.8rem;">${ts.label}</div>`;
+            DAYS.forEach((_, di) => {
+                const entry = schedule.find(e => e.weekNumber === selectedWeek && e.dayOfWeek === di && e.timeSlot === ts.slot);
+                html += `<div class="schedule-cell">${entry ? `<div class="schedule-entry ${entry.subject.type === 'LAB' ? 'lab' : ''}"><div class="schedule-entry-subject">${entry.subject.name}</div><div class="schedule-entry-details">${entry.group.name} • ${entry.room.name}</div></div>` : ''}</div>`;
+            });
+        });
+        document.getElementById('schedule-grid').innerHTML = html;
+    }
+
+    function changeWeek(delta) { selectedWeek = Math.max(1, Math.min(15, selectedWeek + delta)); renderSchedule(); }
+
+    loadTeachers();
+</script>
+{% endblock %}

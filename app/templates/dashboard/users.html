@@ -1,0 +1,211 @@
+{% extends "dashboard/layout.html" %}
+
+{% block dashboard_content %}
+<div>
+    <div class="page-header" style="display: flex; justify-content: space-between; align-items: flex-start;">
+        <div>
+            <h1 class="page-title">Użytkownicy</h1>
+            <p class="page-subtitle">Zarządzaj użytkownikami systemu</p>
+        </div>
+        <button class="btn btn-primary" onclick="openModal()">
+            + Dodaj użytkownika
+        </button>
+    </div>
+
+    <div class="card">
+        <div class="table-container">
+            <table class="table" id="users-table">
+                <thead>
+                    <tr>
+                        <th>Imię i nazwisko</th>
+                        <th>Email</th>
+                        <th>Rola</th>
+                        <th>Grupa</th>
+                        <th>Akcje</th>
+                    </tr>
+                </thead>
+                <tbody id="users-tbody">
+                    <tr>
+                        <td colspan="5" class="text-center text-muted" style="padding: 2rem;">
+                            Ładowanie...
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- Modal -->
+<div id="modal-overlay" class="modal-overlay" style="display: none;" onclick="closeModal()">
+    <div class="modal" onclick="event.stopPropagation()">
+        <div class="modal-header">
+            <h3 class="modal-title" id="modal-title">Nowy użytkownik</h3>
+            <button class="modal-close" onclick="closeModal()">×</button>
+        </div>
+        <form id="user-form" onsubmit="saveUser(event)">
+            <input type="hidden" id="user-id">
+            <div class="form-group">
+                <label class="label">Imię i nazwisko</label>
+                <input type="text" class="input" id="user-name" placeholder="Jan Kowalski" required>
+            </div>
+            <div class="form-group">
+                <label class="label">Email</label>
+                <input type="email" class="input" id="user-email" placeholder="email@uczelnia.pl" required>
+            </div>
+            <div class="form-group">
+                <label class="label" id="password-label">Hasło</label>
+                <input type="password" class="input" id="user-password" placeholder="••••••••">
+            </div>
+            <div class="form-group">
+                <label class="label">Rola</label>
+                <select class="select" id="user-role" onchange="toggleGroupField()">
+                    <option value="STUDENT">Student</option>
+                    <option value="TEACHER">Pracownik dydaktyczny</option>
+                    <option value="ADMIN">Dziekanat (Admin)</option>
+                </select>
+            </div>
+            <div class="form-group" id="group-field">
+                <label class="label">Grupa studencka</label>
+                <select class="select" id="user-group">
+                    <option value="">Brak grupy</option>
+                </select>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" onclick="closeModal()">
+                    Anuluj
+                </button>
+                <button type="submit" class="btn btn-primary">
+                    Zapisz
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    let groups = [];
+    let editingId = null;
+
+    async function loadUsers() {
+        const res = await fetch('/api/users');
+        const users = await res.json();
+        renderUsers(users);
+    }
+
+    async function loadGroups() {
+        const res = await fetch('/api/groups');
+        groups = await res.json();
+        const select = document.getElementById('user-group');
+        select.innerHTML = '<option value="">Brak grupy</option>';
+        groups.forEach(g => {
+            select.innerHTML += `<option value="${g.id}">${g.name}</option>`;
+        });
+    }
+
+    function renderUsers(users) {
+        const tbody = document.getElementById('users-tbody');
+        if (users.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="5" class="text-center text-muted" style="padding: 2rem;">Brak użytkowników. Dodaj pierwszego użytkownika.</td></tr>';
+            return;
+        }
+        tbody.innerHTML = users.map(u => `
+        <tr>
+            <td style="font-weight: 500;">${u.name}</td>
+            <td style="color: var(--text-secondary);">${u.email}</td>
+            <td><span class="badge ${getBadgeClass(u.role)}">${getRoleLabel(u.role)}</span></td>
+            <td>${u.group ? `<span class="badge badge-secondary">${u.group.name}</span>` : '<span style="color: var(--text-muted);">—</span>'}</td>
+            <td>
+                <div style="display: flex; gap: 0.5rem;">
+                    <button class="btn btn-secondary btn-sm" onclick="editUser('${u.id}')">Edytuj</button>
+                    <button class="btn btn-danger btn-sm" onclick="deleteUser('${u.id}')">Usuń</button>
+                </div>
+            </td>
+        </tr>
+    `).join('');
+    }
+
+    function getBadgeClass(role) {
+        if (role === 'ADMIN') return 'badge-warning';
+        if (role === 'TEACHER') return 'badge-primary';
+        return 'badge-success';
+    }
+
+    function getRoleLabel(role) {
+        if (role === 'ADMIN') return '🏛️ Dziekanat';
+        if (role === 'TEACHER') return '👨‍🏫 Pracownik';
+        return '🎓 Student';
+    }
+
+    function openModal() {
+        editingId = null;
+        document.getElementById('modal-title').textContent = 'Nowy użytkownik';
+        document.getElementById('password-label').textContent = 'Hasło';
+        document.getElementById('user-form').reset();
+        document.getElementById('user-password').required = true;
+        toggleGroupField();
+        document.getElementById('modal-overlay').style.display = 'flex';
+    }
+
+    function closeModal() {
+        document.getElementById('modal-overlay').style.display = 'none';
+    }
+
+    function toggleGroupField() {
+        const role = document.getElementById('user-role').value;
+        document.getElementById('group-field').style.display = role === 'STUDENT' ? 'block' : 'none';
+    }
+
+    async function editUser(id) {
+        const res = await fetch(`/api/users/${id}`);
+        const user = await res.json();
+        editingId = id;
+        document.getElementById('modal-title').textContent = 'Edytuj użytkownika';
+        document.getElementById('password-label').textContent = 'Nowe hasło (pozostaw puste aby nie zmieniać)';
+        document.getElementById('user-id').value = id;
+        document.getElementById('user-name').value = user.name;
+        document.getElementById('user-email').value = user.email;
+        document.getElementById('user-password').value = '';
+        document.getElementById('user-password').required = false;
+        document.getElementById('user-role').value = user.role;
+        document.getElementById('user-group').value = user.group?.id || '';
+        toggleGroupField();
+        document.getElementById('modal-overlay').style.display = 'flex';
+    }
+
+    async function saveUser(e) {
+        e.preventDefault();
+        const data = {
+            name: document.getElementById('user-name').value,
+            email: document.getElementById('user-email').value,
+            role: document.getElementById('user-role').value,
+            groupId: document.getElementById('user-group').value || null
+        };
+        const password = document.getElementById('user-password').value;
+        if (password) data.password = password;
+
+        const url = editingId ? `/api/users/${editingId}` : '/api/users';
+        const method = editingId ? 'PUT' : 'POST';
+
+        await fetch(url, {
+            method,
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(data)
+        });
+
+        closeModal();
+        loadUsers();
+    }
+
+    async function deleteUser(id) {
+        if (!confirm('Czy na pewno chcesz usunąć tego użytkownika?')) return;
+        await fetch(`/api/users/${id}`, { method: 'DELETE' });
+        loadUsers();
+    }
+
+    loadUsers();
+    loadGroups();
+</script>
+{% endblock %}

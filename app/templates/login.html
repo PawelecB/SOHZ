@@ -1,0 +1,76 @@
+{% extends "base.html" %}
+
+{% block title %}Zaloguj się - SOHZ{% endblock %}
+
+{% block content %}
+<div style="min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 2rem;">
+    <div style="width: 100%; max-width: 420px;">
+        <div style="text-align: center; margin-bottom: 2rem;">
+            <a href="{{ url_for('main.index') }}" style="text-decoration: none;">
+                <div
+                    style="width: 60px; height: 60px; background: var(--gradient-primary); border-radius: 16px; display: flex; align-items: center; justify-content: center; font-size: 1.75rem; margin: 0 auto 1rem;">
+                    📅
+                </div>
+            </a>
+            <h1 style="font-size: 1.75rem; margin-bottom: 0.5rem;">Zaloguj się</h1>
+            <p style="color: var(--text-secondary);">Witaj w UniSchedule</p>
+        </div>
+
+        <div class="card">
+            {% if error %}
+            <div class="alert alert-error" style="margin-bottom: 1.5rem;">
+                <span class="alert-icon">⚠️</span>
+                {{ error }}
+            </div>
+            {% endif %}
+
+            <form method="POST" action="{{ url_for('auth.login') }}">
+                <div class="form-group">
+                    <label class="label">Email</label>
+                    <input type="email" class="input" name="email" placeholder="email@uczelnia.pl" required>
+                </div>
+
+                <div class="form-group">
+                    <label class="label">Hasło</label>
+                    <input type="password" class="input" name="password" placeholder="••••••••" required>
+                </div>
+
+                <button type="submit" class="btn btn-primary w-full" style="margin-top: 0.5rem;">
+                    Zaloguj się
+                </button>
+            </form>
+
+            <div style="margin-top: 2rem; padding-top: 1.5rem; border-top: 1px solid var(--border);">
+                <p style="font-size: 0.8rem; color: var(--text-muted); margin-bottom: 1rem; text-align: center;">
+                    Szybkie logowanie (demo)
+                </p>
+                <div style="display: flex; flex-direction: column; gap: 0.5rem;">
+                    <button type="button" class="btn btn-secondary btn-sm"
+                        onclick="quickLogin('admin@uczelnia.pl', 'password123')">
+                        🏛️ Dziekanat (Admin)
+                    </button>
+                    <button type="button" class="btn btn-secondary btn-sm"
+                        onclick="quickLogin('jan.nowak@uczelnia.pl', 'password123')">
+                        👨‍🏫 Pracownik dydaktyczny
+                    </button>
+                    <button type="button" class="btn btn-secondary btn-sm"
+                        onclick="quickLogin('student1@uczelnia.pl', 'password123')">
+                        🎓 Student
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    function quickLogin(email, password) {
+        const form = document.querySelector('form');
+        form.querySelector('input[name="email"]').value = email;
+        form.querySelector('input[name="password"]').value = password;
+        form.submit();
+    }
+</script>
+{% endblock %}

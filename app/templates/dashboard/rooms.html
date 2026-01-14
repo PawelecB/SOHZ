@@ -1,0 +1,144 @@
+{% extends "dashboard/layout.html" %}
+
+{% block dashboard_content %}
+<div>
+    <div class="page-header" style="display: flex; justify-content: space-between; align-items: flex-start;">
+        <div>
+            <h1 class="page-title">Sale</h1>
+            <p class="page-subtitle">Zarządzaj salami wykładowymi i laboratoryjnymi</p>
+        </div>
+        <button class="btn btn-primary" onclick="openModal()">
+            + Dodaj salę
+        </button>
+    </div>
+
+    <div class="card">
+        <div class="table-container">
+            <table class="table">
+                <thead>
+                    <tr>
+                        <th>Nazwa</th>
+                        <th>Typ</th>
+                        <th>Pojemność</th>
+                        <th>Akcje</th>
+                    </tr>
+                </thead>
+                <tbody id="rooms-tbody">
+                    <tr>
+                        <td colspan="4" class="text-center text-muted" style="padding: 2rem;">Ładowanie...</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<div id="modal-overlay" class="modal-overlay" style="display: none;" onclick="closeModal()">
+    <div class="modal" onclick="event.stopPropagation()">
+        <div class="modal-header">
+            <h3 class="modal-title" id="modal-title">Nowa sala</h3>
+            <button class="modal-close" onclick="closeModal()">×</button>
+        </div>
+        <form id="room-form" onsubmit="saveRoom(event)">
+            <input type="hidden" id="room-id">
+            <div class="form-group">
+                <label class="label">Nazwa sali</label>
+                <input type="text" class="input" id="room-name" placeholder="np. Aula A1" required>
+            </div>
+            <div class="form-group">
+                <label class="label">Typ sali</label>
+                <select class="select" id="room-type">
+                    <option value="LECTURE">Wykładowa</option>
+                    <option value="LAB">Laboratoryjna</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label class="label">Pojemność</label>
+                <input type="number" class="input" id="room-capacity" value="30" min="1" required>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" onclick="closeModal()">Anuluj</button>
+                <button type="submit" class="btn btn-primary">Zapisz</button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    let editingId = null;
+
+    async function loadRooms() {
+        const res = await fetch('/api/rooms');
+        const rooms = await res.json();
+        renderRooms(rooms);
+    }
+
+    function renderRooms(rooms) {
+        const tbody = document.getElementById('rooms-tbody');
+        if (rooms.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="4" class="text-center text-muted" style="padding: 2rem;">Brak sal. Dodaj pierwszą salę.</td></tr>';
+            return;
+        }
+        tbody.innerHTML = rooms.map(r => `
+        <tr>
+            <td style="font-weight: 500;">${r.name}</td>
+            <td><span class="badge ${r.type === 'LAB' ? 'badge-success' : 'badge-primary'}">${r.type === 'LAB' ? '🔬 Laboratorium' : '📚 Wykładowa'}</span></td>
+            <td>${r.capacity} osób</td>
+            <td>
+                <div style="display: flex; gap: 0.5rem;">
+                    <button class="btn btn-secondary btn-sm" onclick="editRoom('${r.id}')">Edytuj</button>
+                    <button class="btn btn-danger btn-sm" onclick="deleteRoom('${r.id}')">Usuń</button>
+                </div>
+            </td>
+        </tr>
+    `).join('');
+    }
+
+    function openModal() {
+        editingId = null;
+        document.getElementById('modal-title').textContent = 'Nowa sala';
+        document.getElementById('room-form').reset();
+        document.getElementById('room-capacity').value = 30;
+        document.getElementById('modal-overlay').style.display = 'flex';
+    }
+
+    function closeModal() {
+        document.getElementById('modal-overlay').style.display = 'none';
+    }
+
+    async function editRoom(id) {
+        const res = await fetch(`/api/rooms/${id}`);
+        const room = await res.json();
+        editingId = id;
+        document.getElementById('modal-title').textContent = 'Edytuj salę';
+        document.getElementById('room-name').value = room.name;
+        document.getElementById('room-type').value = room.type;
+        document.getElementById('room-capacity').value = room.capacity;
+        document.getElementById('modal-overlay').style.display = 'flex';
+    }
+
+    async function saveRoom(e) {
+        e.preventDefault();
+        const data = {
+            name: document.getElementById('room-name').value,
+            type: document.getElementById('room-type').value,
+            capacity: document.getElementById('room-capacity').value
+        };
+        const url = editingId ? `/api/rooms/${editingId}` : '/api/rooms';
+        const method = editingId ? 'PUT' : 'POST';
+        await fetch(url, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) });
+        closeModal();
+        loadRooms();
+    }
+
+    async function deleteRoom(id) {
+        if (!confirm('Czy na pewno chcesz usunąć tę salę?')) return;
+        await fetch(`/api/rooms/${id}`, { method: 'DELETE' });
+        loadRooms();
+    }
+
+    loadRooms();
+</script>
+{% endblock %}

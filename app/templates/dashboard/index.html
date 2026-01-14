@@ -1,0 +1,130 @@
+{% extends "dashboard/layout.html" %}
+
+{% block dashboard_content %}
+<div>
+    <div class="page-header">
+        <h1 class="page-title">
+            Witaj, {{ current_user.name.split()[0] }}! 👋
+        </h1>
+        <p class="page-subtitle">
+            {% if current_user.role == 'ADMIN' %}Panel zarządzania harmonogramem uczelni{% endif %}
+            {% if current_user.role == 'TEACHER' %}Zarządzaj swoimi preferencjami i przeglądaj harmonogram{% endif %}
+            {% if current_user.role == 'STUDENT' %}Przeglądaj harmonogram zajęć{% endif %}
+        </p>
+    </div>
+
+    {% if current_user.role == 'ADMIN' %}
+    <div class="stats-grid">
+        <div class="stat-card">
+            <div class="stat-value">{{ stats.users }}</div>
+            <div class="stat-label">Użytkownicy</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-value">{{ stats.rooms }}</div>
+            <div class="stat-label">Sale</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-value">{{ stats.subjects }}</div>
+            <div class="stat-label">Przedmioty</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-value">{{ stats.groups }}</div>
+            <div class="stat-label">Grupy</div>
+        </div>
+    </div>
+
+    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 1.5rem;">
+        <div class="card">
+            <div class="card-header">
+                <h3 class="card-title">Szybkie akcje</h3>
+            </div>
+            <div style="display: flex; flex-direction: column; gap: 0.75rem;">
+                <a href="{{ url_for('dashboard.generate') }}" class="btn btn-primary">
+                    ⚡ Generuj harmonogram
+                </a>
+                <a href="{{ url_for('dashboard.schedule') }}" class="btn btn-secondary">
+                    📅 Przeglądaj harmonogram
+                </a>
+                <a href="{{ url_for('dashboard.users') }}" class="btn btn-secondary">
+                    👥 Zarządzaj użytkownikami
+                </a>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="card-header">
+                <h3 class="card-title">Status systemu</h3>
+            </div>
+            <div style="display: flex; flex-direction: column; gap: 0.75rem;">
+                <div style="display: flex; justify-content: space-between; align-items: center;">
+                    <span style="color: var(--text-secondary);">Wpisy w harmonogramie</span>
+                    <span class="badge badge-primary">{{ stats.scheduleEntries }}</span>
+                </div>
+                <div style="display: flex; justify-content: space-between; align-items: center;">
+                    <span style="color: var(--text-secondary);">Status</span>
+                    <span class="badge badge-success">Aktywny</span>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    {% if current_user.role == 'TEACHER' %}
+    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 1.5rem;">
+        <div class="card">
+            <div class="card-header">
+                <h3 class="card-title">Twoje zajęcia</h3>
+            </div>
+            <div style="display: flex; flex-direction: column; gap: 0.75rem;">
+                <a href="{{ url_for('dashboard.schedule') }}" class="btn btn-primary">
+                    📅 Przeglądaj harmonogram
+                </a>
+                <a href="{{ url_for('dashboard.preferences') }}" class="btn btn-secondary">
+                    ⭐ Zarządzaj preferencjami
+                </a>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="card-header">
+                <h3 class="card-title">Informacje</h3>
+            </div>
+            <p style="color: var(--text-secondary); font-size: 0.9rem;">
+                Dodaj swoje preferencje czasowe, a system weźmie je pod uwagę podczas generowania harmonogramu.
+                Im wyższy priorytet, tym większa szansa na uwzględnienie preferencji.
+            </p>
+        </div>
+    </div>
+    {% endif %}
+
+    {% if current_user.role == 'STUDENT' %}
+    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 1.5rem;">
+        <div class="card">
+            <div class="card-header">
+                <h3 class="card-title">Twoja grupa</h3>
+            </div>
+            <div style="margin-bottom: 1rem;">
+                <span class="badge badge-primary" style="font-size: 1rem; padding: 0.5rem 1rem;">
+                    {{ current_user.group.name if current_user.group else 'Nie przypisano' }}
+                </span>
+            </div>
+            <a href="{{ url_for('dashboard.schedule') }}" class="btn btn-primary">
+                📅 Przeglądaj harmonogram grupy
+            </a>
+        </div>
+
+        <div class="card">
+            <div class="card-header">
+                <h3 class="card-title">Plany wykładowców</h3>
+            </div>
+            <p style="color: var(--text-secondary); font-size: 0.9rem; margin-bottom: 1rem;">
+                Sprawdź harmonogram wybranego wykładowcy
+            </p>
+            <a href="{{ url_for('dashboard.teachers') }}" class="btn btn-secondary">
+                👨‍🏫 Wyszukaj wykładowcę
+            </a>
+        </div>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

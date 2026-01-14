@@ -1,0 +1,13 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard - SOHZ{% endblock %}
+
+{% block content %}
+<div class="layout">
+    {% include "components/sidebar.html" %}
+
+    <main class="main-content">
+        {% block dashboard_content %}{% endblock %}
+    </main>
+</div>
+{% endblock %}

@@ -1,0 +1,326 @@
+{% extends "dashboard/layout.html" %}
+
+{% block dashboard_content %}
+<div>
+    <div class="page-header">
+        <h1 class="page-title">📅 Harmonogram semestralny</h1>
+        <p class="page-subtitle" id="schedule-subtitle">
+            {% if current_user.role == 'STUDENT' and current_user.group %}Harmonogram grupy: <strong>{{
+                current_user.group.name }}</strong>{% endif %}
+            {% if current_user.role == 'TEACHER' %}Twój plan zajęć{% endif %}
+        </p>
+    </div>
+
+    <div class="card" style="margin-bottom: 1.5rem; padding: 1rem;">
+        <div style="display: flex; align-items: center; gap: 1rem; flex-wrap: wrap;">
+            {% if current_user.role == 'ADMIN' %}
+            <!-- View mode toggle -->
+            <div
+                style="display: flex; gap: 0.25rem; background: var(--bg-tertiary); padding: 0.25rem; border-radius: 6px;">
+                <button class="btn btn-sm btn-primary" id="mode-group" onclick="setViewType('group')">👥 Grupy</button>
+                <button class="btn btn-sm btn-secondary" id="mode-teacher" onclick="setViewType('teacher')">👨‍🏫
+                    Prowadzący</button>
+            </div>
+
+            <select class="select" id="group-select" style="max-width: 200px;"></select>
+            <select class="select" id="teacher-select" style="max-width: 200px; display: none;"></select>
+            {% endif %}
+
+            <label class="label" style="margin-bottom: 0;">Semestr:</label>
+            <select class="select" id="semester-select" style="max-width: 180px;">
+                <option value="WINTER">Zimowy (paź-lut)</option>
+                <option value="SUMMER">Letni (mar-lip)</option>
+            </select>
+
+            <div style="margin-left: auto; display: flex; gap: 0.5rem;">
+                <button class="btn btn-sm btn-primary" id="btn-week" onclick="setViewMode('week')">Tydzień</button>
+                <button class="btn btn-sm btn-secondary" id="btn-month" onclick="setViewMode('month')">Miesiąc</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="loading" class="loading">
+        <div class="spinner"></div>
+    </div>
+    <div id="empty-state" class="card" style="display: none;">
+        <div class="empty-state">
+            <div class="empty-state-icon">📭</div>
+            <p class="empty-state-text">Harmonogram nie został jeszcze wygenerowany lub opublikowany.</p>
+        </div>
+    </div>
+
+    <div id="week-view" style="display: none;">
+        <div style="margin-bottom: 1rem;">
+            <div style="display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap;">
+                <button class="btn btn-sm btn-secondary" onclick="changeWeek(-1)" id="btn-prev">← Poprzedni</button>
+                <span style="font-weight: 600; min-width: 200px; text-align: center;" id="week-label">Tydzień 1</span>
+                <button class="btn btn-sm btn-secondary" onclick="changeWeek(1)" id="btn-next">Następny →</button>
+                <span style="margin-left: 1rem; color: var(--text-muted); font-size: 0.9rem;" id="month-label"></span>
+            </div>
+        </div>
+        <div class="card" style="padding: 1rem; overflow: auto;">
+            <div class="schedule-grid" style="grid-template-columns: auto repeat(5, 1fr);" id="schedule-grid"></div>
+        </div>
+    </div>
+
+    <div id="month-view" style="display: none;"></div>
+
+    <div style="margin-top: 1.5rem; display: flex; gap: 1rem;">
+        <div style="display: flex; align-items: center; gap: 0.5rem;">
+            <div style="width: 20px; height: 20px; background: var(--gradient-primary); border-radius: 4px;"></div>
+            <span style="font-size: 0.85rem; color: var(--text-secondary);">Wykład</span>
+        </div>
+        <div style="display: flex; align-items: center; gap: 0.5rem;">
+            <div
+                style="width: 20px; height: 20px; background: linear-gradient(135deg, #10b981 0%, #059669 100%); border-radius: 4px;">
+            </div>
+            <span style="font-size: 0.85rem; color: var(--text-secondary);">Laboratorium</span>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    const DAYS = ['Poniedziałek', 'Wtorek', 'Środa', 'Czwartek', 'Piątek'];
+    const TIME_SLOTS = [{ slot: 1, label: '8:00 - 9:30' }, { slot: 2, label: '9:45 - 11:15' }, { slot: 3, label: '11:30 - 13:00' }, { slot: 4, label: '13:15 - 14:45' }, { slot: 5, label: '15:00 - 16:30' }, { slot: 6, label: '16:45 - 18:15' }, { slot: 7, label: '18:30 - 20:00' }];
+    const MONTHS = ['Styczeń', 'Luty', 'Marzec', 'Kwiecień', 'Maj', 'Czerwiec', 'Lipiec', 'Sierpień', 'Wrzesień', 'Październik', 'Listopad', 'Grudzień'];
+
+    let schedule = [], selectedWeek = 1, viewMode = 'week', viewType = 'group';
+    const isAdmin = {{ 'true' if current_user.role == 'ADMIN' else 'false' }};
+
+    {% if current_user.role == 'ADMIN' %}
+    async function loadGroups() {
+        const res = await fetch('/api/groups');
+        const groups = await res.json();
+        const sel = document.getElementById('group-select');
+        sel.innerHTML = '';
+        groups.forEach(g => { sel.innerHTML += `<option value="${g.id}">${g.name}</option>`; });
+        return groups;
+    }
+
+    async function loadTeachers() {
+        const res = await fetch('/api/teachers');
+        const teachers = await res.json();
+        const sel = document.getElementById('teacher-select');
+        sel.innerHTML = '';
+        teachers.forEach(t => { sel.innerHTML += `<option value="${t.id}">${t.name}</option>`; });
+        return teachers;
+    }
+
+    function setViewType(type) {
+        viewType = type;
+        document.getElementById('mode-group').className = `btn btn-sm ${type === 'group' ? 'btn-primary' : 'btn-secondary'}`;
+        document.getElementById('mode-teacher').className = `btn btn-sm ${type === 'teacher' ? 'btn-primary' : 'btn-secondary'}`;
+        document.getElementById('group-select').style.display = type === 'group' ? 'block' : 'none';
+        document.getElementById('teacher-select').style.display = type === 'teacher' ? 'block' : 'none';
+
+        if (type === 'group') {
+            const groupId = document.getElementById('group-select').value;
+            if (groupId) loadScheduleForGroup(groupId);
+        } else {
+            const teacherId = document.getElementById('teacher-select').value;
+            if (teacherId) loadScheduleForTeacher(teacherId);
+        }
+    }
+
+    async function loadScheduleForGroup(groupId) {
+        showLoading();
+        const semester = document.getElementById('semester-select').value;
+        const res = await fetch(`/api/schedule/group/${groupId}?semester=${semester}`);
+        schedule = await res.json();
+        hideLoading();
+        if (schedule.length === 0) { showEmpty(); return; }
+        renderView();
+    }
+
+    async function loadScheduleForTeacher(teacherId) {
+        showLoading();
+        const semester = document.getElementById('semester-select').value;
+        const res = await fetch(`/api/schedule/teacher/${teacherId}?semester=${semester}`);
+        schedule = await res.json();
+        hideLoading();
+        if (schedule.length === 0) { showEmpty(); return; }
+        renderView();
+    }
+
+    async function initAdmin() {
+        const [groups, teachers] = await Promise.all([loadGroups(), loadTeachers()]);
+
+        // Check URL params
+        const urlParams = new URLSearchParams(window.location.search);
+        const groupId = urlParams.get('group');
+        const semester = urlParams.get('semester');
+
+        if (semester) {
+            document.getElementById('semester-select').value = semester;
+        }
+
+        if (groupId) {
+            document.getElementById('group-select').value = groupId;
+            loadScheduleForGroup(groupId);
+        } else if (groups.length) {
+            loadScheduleForGroup(groups[0].id);
+        }
+
+        document.getElementById('group-select').addEventListener('change', e => loadScheduleForGroup(e.target.value));
+        document.getElementById('teacher-select').addEventListener('change', e => loadScheduleForTeacher(e.target.value));
+    }
+    {% endif %}
+
+    function showLoading() {
+        document.getElementById('loading').style.display = 'flex';
+        document.getElementById('week-view').style.display = 'none';
+        document.getElementById('month-view').style.display = 'none';
+        document.getElementById('empty-state').style.display = 'none';
+    }
+
+    function hideLoading() {
+        document.getElementById('loading').style.display = 'none';
+    }
+
+    function showEmpty() {
+        document.getElementById('empty-state').style.display = 'block';
+    }
+
+    async function loadSchedule() {
+        showLoading();
+        const semester = document.getElementById('semester-select').value;
+        const res = await fetch(`/api/schedule?semester=${semester}`);
+        schedule = await res.json();
+        hideLoading();
+        if (schedule.length === 0) { showEmpty(); return; }
+        renderView();
+    }
+
+    function renderView() {
+        if (viewMode === 'week') renderWeekView();
+        else renderMonthView();
+    }
+
+    function renderWeekView() {
+        document.getElementById('week-view').style.display = 'block';
+        document.getElementById('month-view').style.display = 'none';
+
+        const semester = document.getElementById('semester-select').value;
+        const dates = getWeekDates(semester, selectedWeek);
+        document.getElementById('week-label').textContent = `Tydzień ${selectedWeek} (${formatDate(dates[0])} - ${formatDate(dates[4])})`;
+        document.getElementById('month-label').textContent = MONTHS[dates[0].getMonth()];
+        document.getElementById('btn-prev').disabled = selectedWeek <= 1;
+        document.getElementById('btn-next').disabled = selectedWeek >= 15;
+
+        let html = '<div class="schedule-header"></div>';
+        DAYS.forEach((d, i) => { html += `<div class="schedule-header">${d} ${formatDate(dates[i])}</div>`; });
+
+        TIME_SLOTS.forEach(ts => {
+            html += `<div class="schedule-time" style="font-size: 0.8rem;">${ts.label}</div>`;
+            DAYS.forEach((_, di) => {
+                const entry = schedule.find(e => e.weekNumber === selectedWeek && e.dayOfWeek === di && e.timeSlot === ts.slot);
+                if (entry) {
+                    const groupInfo = viewType === 'teacher' ? ` • ${entry.group.name}` : '';
+                    const teacherInfo = viewType === 'group' ? entry.teacherSubject.teacher.name : '';
+                    html += `<div class="schedule-cell"><div class="schedule-entry ${entry.subject.type === 'LAB' ? 'lab' : ''}" title="${entry.subject.name}\n${teacherInfo}${groupInfo}\n${entry.room.name}"><div class="schedule-entry-subject">${entry.subject.name}</div><div class="schedule-entry-details">${entry.room.name}${groupInfo}</div></div></div>`;
+                } else {
+                    html += `<div class="schedule-cell"></div>`;
+                }
+            });
+        });
+        document.getElementById('schedule-grid').innerHTML = html;
+    }
+
+    function renderMonthView() {
+        document.getElementById('week-view').style.display = 'none';
+        document.getElementById('month-view').style.display = 'block';
+
+        const semester = document.getElementById('semester-select').value;
+        const monthGroups = groupWeeksByMonth(semester);
+
+        let html = '';
+        monthGroups.forEach(mg => {
+            html += `<div style="margin-bottom: 2rem;"><h3 style="font-size: 1.1rem; margin-bottom: 0.75rem; color: var(--text-secondary); border-bottom: 1px solid var(--border); padding-bottom: 0.5rem;">📆 ${mg.month}</h3><div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 0.75rem;">`;
+            mg.weeks.forEach(week => {
+                const entries = schedule.filter(e => e.weekNumber === week);
+                const dates = getWeekDates(semester, week);
+                html += `<div class="card" style="padding: 0.75rem; cursor: pointer; opacity: ${entries.length ? 1 : 0.5};" onclick="goToWeek(${week})">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.25rem;">
+                    <span style="font-weight: 600;">Tydzień ${week}</span>
+                    <span class="badge ${entries.length ? 'badge-primary' : 'badge-secondary'}" style="font-size: 0.7rem;">${entries.length} zaj.</span>
+                </div>
+                <div style="font-size: 0.8rem; color: var(--text-muted); margin-bottom: 0.5rem;">${formatDate(dates[0])} - ${formatDate(dates[4])}</div>
+                ${entries.length ? `<div style="font-size: 0.75rem;">${[...new Set(entries.map(e => e.subject.name))].slice(0, 3).map(n => `<div style="padding: 0.15rem 0.3rem; background: var(--bg-tertiary); border-radius: 3px; margin-bottom: 0.15rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${n}</div>`).join('')}</div>` : ''}
+            </div>`;
+            });
+            html += '</div></div>';
+        });
+        document.getElementById('month-view').innerHTML = html;
+    }
+
+    function setViewMode(mode) {
+        viewMode = mode;
+        document.getElementById('btn-week').className = `btn btn-sm ${mode === 'week' ? 'btn-primary' : 'btn-secondary'}`;
+        document.getElementById('btn-month').className = `btn btn-sm ${mode === 'month' ? 'btn-primary' : 'btn-secondary'}`;
+        renderView();
+    }
+
+    function changeWeek(delta) { selectedWeek = Math.max(1, Math.min(15, selectedWeek + delta)); renderWeekView(); }
+    function goToWeek(week) { selectedWeek = week; setViewMode('week'); }
+
+    function getSemesterStartDate(semester) {
+        const year = new Date().getFullYear();
+        if (semester === 'WINTER') { const d = new Date(year, 9, 1); const dow = d.getDay(); return new Date(year, 9, 1 + (dow === 0 ? 1 : dow === 1 ? 0 : 8 - dow)); }
+        else { const d = new Date(year, 2, 1); const dow = d.getDay(); return new Date(year, 2, 1 + (dow === 0 ? 1 : dow === 1 ? 0 : 8 - dow)); }
+    }
+
+    function getWeekDates(semester, weekNum) {
+        const start = getSemesterStartDate(semester);
+        const weekStart = new Date(start); weekStart.setDate(start.getDate() + (weekNum - 1) * 7);
+        return Array.from({ length: 5 }, (_, i) => { const d = new Date(weekStart); d.setDate(weekStart.getDate() + i); return d; });
+    }
+
+    function formatDate(d) { return `${String(d.getDate()).padStart(2, '0')}.${String(d.getMonth() + 1).padStart(2, '0')}`; }
+
+    function groupWeeksByMonth(semester) {
+        const groups = [];
+        let current = -1;
+        for (let w = 1; w <= 15; w++) {
+            const mi = getWeekDates(semester, w)[0].getMonth();
+            if (mi !== current) { current = mi; groups.push({ month: MONTHS[mi], weeks: [w] }); }
+            else { groups[groups.length - 1].weeks.push(w); }
+        }
+        return groups;
+    }
+
+    // Global function for preview from generate page
+    window.previewSchedule = function (groupId, semester) {
+        {% if current_user.role == 'ADMIN' %}
+        document.getElementById('group-select').value = groupId;
+        document.getElementById('semester-select').value = semester;
+        setViewType('group');
+        loadScheduleForGroup(groupId);
+        {% endif %}
+    };
+
+    // Init
+    const month = new Date().getMonth() + 1;
+    if (month >= 3 && month <= 7) document.getElementById('semester-select').value = 'SUMMER';
+
+    {% if current_user.role == 'ADMIN' %}
+    initAdmin();
+    {% else %}
+    loadSchedule();
+    {% endif %}
+
+    document.getElementById('semester-select').addEventListener('change', () => {
+        selectedWeek = 1;
+        {% if current_user.role == 'ADMIN' %}
+        if (viewType === 'group') {
+            loadScheduleForGroup(document.getElementById('group-select').value);
+        } else {
+            loadScheduleForTeacher(document.getElementById('teacher-select').value);
+        }
+        {% else %}
+        loadSchedule();
+        {% endif %}
+    });
+</script>
+{% endblock %}

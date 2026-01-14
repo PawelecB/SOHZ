@@ -1,0 +1,105 @@
+{% extends "dashboard/layout.html" %}
+
+{% block dashboard_content %}
+<div>
+    <div class="page-header" style="display: flex; justify-content: space-between; align-items: flex-start;">
+        <div>
+            <h1 class="page-title">Grupy</h1>
+            <p class="page-subtitle">Zarządzaj grupami studenckimi</p>
+        </div>
+        <button class="btn btn-primary" onclick="openModal()">+ Dodaj grupę</button>
+    </div>
+
+    <div class="card">
+        <div class="table-container">
+            <table class="table">
+                <thead>
+                    <tr>
+                        <th>Nazwa</th>
+                        <th>Liczba studentów</th>
+                        <th>Akcje</th>
+                    </tr>
+                </thead>
+                <tbody id="groups-tbody">
+                    <tr>
+                        <td colspan="3" class="text-center text-muted" style="padding: 2rem;">Ładowanie...</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<div id="modal-overlay" class="modal-overlay" style="display: none;" onclick="closeModal()">
+    <div class="modal" onclick="event.stopPropagation()">
+        <div class="modal-header">
+            <h3 class="modal-title" id="modal-title">Nowa grupa</h3>
+            <button class="modal-close" onclick="closeModal()">×</button>
+        </div>
+        <form id="group-form" onsubmit="saveGroup(event)">
+            <input type="hidden" id="group-id">
+            <div class="form-group">
+                <label class="label">Nazwa grupy</label>
+                <input type="text" class="input" id="group-name" placeholder="np. INF-1A" required>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" onclick="closeModal()">Anuluj</button>
+                <button type="submit" class="btn btn-primary">Zapisz</button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    let editingId = null;
+
+    async function loadGroups() {
+        const res = await fetch('/api/groups');
+        const groups = await res.json();
+        renderGroups(groups);
+    }
+
+    function renderGroups(groups) {
+        const tbody = document.getElementById('groups-tbody');
+        if (groups.length === 0) { tbody.innerHTML = '<tr><td colspan="3" class="text-center text-muted" style="padding: 2rem;">Brak grup.</td></tr>'; return; }
+        tbody.innerHTML = groups.map(g => `
+        <tr>
+            <td style="font-weight: 500;">${g.name}</td>
+            <td><span class="badge badge-primary">${g.size}</span> studentów</td>
+            <td>
+                <div style="display: flex; gap: 0.5rem;">
+                    <button class="btn btn-secondary btn-sm" onclick="editGroup('${g.id}')">Edytuj</button>
+                    <button class="btn btn-danger btn-sm" onclick="deleteGroup('${g.id}')">Usuń</button>
+                </div>
+            </td>
+        </tr>
+    `).join('');
+    }
+
+    function openModal() { editingId = null; document.getElementById('modal-title').textContent = 'Nowa grupa'; document.getElementById('group-form').reset(); document.getElementById('modal-overlay').style.display = 'flex'; }
+    function closeModal() { document.getElementById('modal-overlay').style.display = 'none'; }
+
+    async function editGroup(id) {
+        const res = await fetch(`/api/groups/${id}`);
+        const g = await res.json();
+        editingId = id;
+        document.getElementById('modal-title').textContent = 'Edytuj grupę';
+        document.getElementById('group-name').value = g.name;
+        document.getElementById('modal-overlay').style.display = 'flex';
+    }
+
+    async function saveGroup(e) {
+        e.preventDefault();
+        const data = { name: document.getElementById('group-name').value };
+        const url = editingId ? `/api/groups/${editingId}` : '/api/groups';
+        await fetch(url, { method: editingId ? 'PUT' : 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) });
+        closeModal(); loadGroups();
+    }
+
+    async function deleteGroup(id) { if (!confirm('Czy na pewno chcesz usunąć tę grupę?')) return; await fetch(`/api/groups/${id}`, { method: 'DELETE' }); loadGroups(); }
+
+    loadGroups();
+</script>
+{% endblock %}

@@ -1,0 +1,430 @@
+{% extends "dashboard/layout.html" %}
+
+{% block dashboard_content %}
+<div>
+    <div class="page-header">
+        <h1 class="page-title">⚡ Zarządzanie harmonogramami</h1>
+        <p class="page-subtitle">Generuj, optymalizuj i publikuj harmonogramy zajęć</p>
+    </div>
+
+    <!-- Tab navigation -->
+    <div
+        style="display: flex; gap: 0.5rem; margin-bottom: 1.5rem; border-bottom: 1px solid var(--border); padding-bottom: 0.5rem;">
+        <button class="btn btn-primary" id="tab-generate" onclick="switchTab('generate')">➕ Generuj nowy</button>
+        <button class="btn btn-secondary" id="tab-drafts" onclick="switchTab('drafts')">📝 Draft harmonogramy</button>
+    </div>
+
+    <!-- Generate Tab -->
+    <div id="panel-generate">
+        <div class="card" style="margin-bottom: 1.5rem;">
+            <div class="card-header">
+                <h3 class="card-title">Generuj harmonogram dla grupy</h3>
+            </div>
+            <div class="grid grid-2 gap-4">
+                <div class="form-group">
+                    <label class="label">Grupa studencka</label>
+                    <select class="select" id="group-select">
+                        <option value="">Wybierz grupę...</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label class="label">Semestr</label>
+                    <select class="select" id="semester-select">
+                        <option value="WINTER">Zimowy (październik - luty)</option>
+                        <option value="SUMMER">Letni (marzec - lipiec)</option>
+                    </select>
+                </div>
+            </div>
+            <div class="alert"
+                style="margin-top: 1rem; background: var(--bg-tertiary); border-left: 3px solid var(--primary);">
+                <span class="alert-icon">ℹ️</span>
+                <span>Wygenerowany harmonogram będzie w statusie <strong>DRAFT</strong>. Możesz go zoptymalizować z
+                    innymi harmonogramami przed publikacją.</span>
+            </div>
+            <button class="btn btn-primary" onclick="generateSchedule()" style="width: 100%; margin-top: 1rem;"
+                id="generate-btn">
+                ⚡ Generuj harmonogram (Draft)
+            </button>
+        </div>
+        <div id="error-msg" class="alert alert-error" style="display: none;"><span class="alert-icon">⚠️</span><span
+                id="error-text"></span></div>
+        <div id="success-msg" class="alert alert-success" style="display: none;"><span class="alert-icon">✅</span><span
+                id="success-text"></span></div>
+    </div>
+
+    <!-- Drafts Tab -->
+    <div id="panel-drafts" style="display: none;">
+        <div class="card" style="margin-bottom: 1rem;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+                <h3 style="margin: 0;">Harmonogramy Draft</h3>
+                <div style="display: flex; gap: 0.5rem;">
+                    <button class="btn btn-secondary" onclick="reoptimizeSelected()" id="btn-reoptimize" disabled>🔄
+                        Optymalizuj zaznaczone</button>
+                    <button class="btn btn-primary" onclick="publishSelected()" id="btn-publish" disabled>📤 Opublikuj
+                        zaznaczone</button>
+                </div>
+            </div>
+            <div class="table-container">
+                <table class="table">
+                    <thead>
+                        <tr>
+                            <th><input type="checkbox" id="select-all" onchange="toggleSelectAll()"></th>
+                            <th>Grupa</th>
+                            <th>Semestr</th>
+                            <th>Utworzono</th>
+                            <th>Preferencje</th>
+                            <th>Okienka (N)</th>
+                            <th>Okienka (S)</th>
+                            <th>Wpisy</th>
+                            <th>Akcje</th>
+                        </tr>
+                    </thead>
+                    <tbody id="drafts-tbody">
+                        <tr>
+                            <td colspan="9" class="text-center text-muted" style="padding: 2rem;">Ładowanie...</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <div class="card" style="background: var(--bg-tertiary);">
+            <h4 style="margin-bottom: 0.75rem;">💡 Wskazówki optymalizacji</h4>
+            <ul style="color: var(--text-secondary); font-size: 0.9rem; margin: 0; padding-left: 1.5rem;">
+                <li><strong>Preferencje</strong> - % zajęć zgodnych z preferencjami czasowymi nauczycieli</li>
+                <li><strong>Okienka (N)</strong> - liczba przerw między zajęciami dla nauczycieli (mniej = lepiej)</li>
+                <li><strong>Okienka (S)</strong> - liczba przerw między zajęciami dla studentów (mniej = lepiej)</li>
+                <li>Zaznacz kilka harmonogramów i kliknij "Optymalizuj" aby je wspólnie zoptymalizować</li>
+            </ul>
+        </div>
+    </div>
+
+    <!-- Optimization Settings Modal -->
+    <div id="settings-modal" class="modal-overlay" style="display: none;" onclick="closeSettingsModal()">
+        <div class="modal" style="max-width: 500px;" onclick="event.stopPropagation()">
+            <div class="modal-header">
+                <h3 class="modal-title">⚙️ Ustawienia optymalizacji</h3>
+                <button class="modal-close" onclick="closeSettingsModal()">×</button>
+            </div>
+            <div style="padding: 1rem;">
+                <p style="margin-bottom: 1.5rem; color: var(--text-secondary);">Dostosuj priorytety optymalizacji (1 =
+                    mały, 3 = duży):</p>
+
+                <div class="form-group">
+                    <label class="label" style="display: flex; justify-content: space-between;">
+                        Preferencje nauczycieli <span id="val-pref" class="badge badge-primary">2</span>
+                    </label>
+                    <input type="range" class="range" id="weight-pref" min="1" max="3" value="2" step="1"
+                        oninput="document.getElementById('val-pref').textContent = this.value">
+                    <p class="text-sm text-muted">Jak ważne jest spełnienie preferencji czasowych</p>
+                </div>
+
+                <div class="form-group">
+                    <label class="label" style="display: flex; justify-content: space-between;">
+                        Unikanie okienek (Nauczyciele) <span id="val-tgaps" class="badge badge-primary">2</span>
+                    </label>
+                    <input type="range" class="range" id="weight-tgaps" min="1" max="3" value="2" step="1"
+                        oninput="document.getElementById('val-tgaps').textContent = this.value">
+                    <p class="text-sm text-muted">Minimalizacja przerw w zajęciach nauczycieli</p>
+                </div>
+
+                <div class="form-group">
+                    <label class="label" style="display: flex; justify-content: space-between;">
+                        Unikanie okienek (Studenci) <span id="val-sgaps" class="badge badge-primary">2</span>
+                    </label>
+                    <input type="range" class="range" id="weight-sgaps" min="1" max="3" value="2" step="1"
+                        oninput="document.getElementById('val-sgaps').textContent = this.value">
+                    <p class="text-sm text-muted">Minimalizacja przerw w zajęciach studentów</p>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="closeSettingsModal()">Anuluj</button>
+                <button class="btn btn-primary" onclick="runOptimization()">🚀 Rozpocznij optymalizację</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Conflicts modal -->
+    <div id="conflicts-modal" class="modal-overlay" style="display: none;" onclick="closeConflictsModal()">
+        <div class="modal" style="max-width: 700px;" onclick="event.stopPropagation()">
+            <div class="modal-header">
+                <h3 class="modal-title">⚠️ Wykryto konflikty</h3>
+                <button class="modal-close" onclick="closeConflictsModal()">×</button>
+            </div>
+            <div id="conflicts-content" style="max-height: 60vh; overflow-y: auto;"></div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="closeConflictsModal()">Anuluj</button>
+                <button class="btn btn-primary" onclick="applyConflictResolutions()">Zastosuj wybrane terminy</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    const DAYS = ['Poniedziałek', 'Wtorek', 'Środa', 'Czwartek', 'Piątek'];
+    let resolvedConflicts = {};
+    let currentGeneratingGroupId = null;
+    let selectedBatches = new Set();
+
+    // Tab switching
+    function switchTab(tab) {
+        document.getElementById('panel-generate').style.display = tab === 'generate' ? 'block' : 'none';
+        document.getElementById('panel-drafts').style.display = tab === 'drafts' ? 'block' : 'none';
+        document.getElementById('tab-generate').className = `btn ${tab === 'generate' ? 'btn-primary' : 'btn-secondary'}`;
+        document.getElementById('tab-drafts').className = `btn ${tab === 'drafts' ? 'btn-primary' : 'btn-secondary'}`;
+        if (tab === 'drafts') loadDrafts();
+    }
+
+    // Load groups
+    async function loadGroups() {
+        const res = await fetch('/api/groups');
+        const groups = await res.json();
+        const select = document.getElementById('group-select');
+        groups.forEach(g => { select.innerHTML += `<option value="${g.id}">${g.name} (${g.size} studentów)</option>`; });
+    }
+
+    // Generate schedule
+    async function generateSchedule() {
+        const groupId = document.getElementById('group-select').value;
+        const semester = document.getElementById('semester-select').value;
+        if (!groupId) { showError('Wybierz grupę studencką'); return; }
+
+        currentGeneratingGroupId = groupId;
+        document.getElementById('generate-btn').disabled = true;
+        document.getElementById('generate-btn').textContent = 'Generowanie...';
+        hideMessages();
+
+        try {
+            const res = await fetch('/api/schedule/generate', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ groupId, semester, resolvedConflicts })
+            });
+            const data = await res.json();
+
+            if (data.error) { showError(data.error); return; }
+
+            if (data.conflicts && data.conflicts.length > 0) {
+                showConflictsModal(data);
+            } else {
+                showSuccess(`Harmonogram dla grupy ${data.group.name} został wygenerowany jako DRAFT. Przejdź do zakładki "Draft harmonogramy" aby opublikować.`);
+                resolvedConflicts = {};
+            }
+        } catch (e) { showError('Wystąpił błąd podczas generowania harmonogramu.'); }
+        finally {
+            document.getElementById('generate-btn').disabled = false;
+            document.getElementById('generate-btn').textContent = '⚡ Generuj harmonogram (Draft)';
+        }
+    }
+
+    // Load drafts
+    async function loadDrafts() {
+        const semester = document.getElementById('semester-select').value;
+        const res = await fetch(`/api/schedule/drafts?semester=${semester}`);
+        const drafts = await res.json();
+        renderDrafts(drafts);
+    }
+
+    function renderDrafts(drafts) {
+        const tbody = document.getElementById('drafts-tbody');
+        if (drafts.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="9" class="text-center text-muted" style="padding: 2rem;">Brak harmonogramów draft. Wygeneruj nowy harmonogram.</td></tr>';
+            return;
+        }
+        tbody.innerHTML = drafts.map(d => `
+        <tr>
+            <td><input type="checkbox" class="batch-checkbox" value="${d.id}" onchange="updateSelection()"></td>
+            <td style="font-weight: 500;">${d.groupName}</td>
+            <td><span class="badge badge-secondary">${d.semester === 'WINTER' ? 'Zimowy' : 'Letni'}</span></td>
+            <td style="font-size: 0.85rem; color: var(--text-muted);">${formatDate(d.createdAt)}</td>
+            <td><span class="badge ${d.preferenceScore >= 50 ? 'badge-success' : 'badge-warning'}">${d.preferenceScore}%</span></td>
+            <td><span class="badge ${d.teacherGaps <= 5 ? 'badge-success' : 'badge-warning'}">${d.teacherGaps}</span></td>
+            <td><span class="badge ${d.studentGaps <= 5 ? 'badge-success' : 'badge-warning'}">${d.studentGaps}</span></td>
+            <td>${d.entriesCount}</td>
+            <td>
+                <div style="display: flex; gap: 0.25rem;">
+                    <button class="btn btn-secondary btn-sm" onclick="previewDraft('${d.groupId}', '${d.semester}')" title="Podgląd">👁️</button>
+                    <button class="btn btn-danger btn-sm" onclick="deleteDraft('${d.id}')" title="Usuń">🗑️</button>
+                </div>
+            </td>
+        </tr>
+    `).join('');
+        selectedBatches.clear();
+        updateButtons();
+    }
+
+    function formatDate(iso) {
+        if (!iso) return '-';
+        const d = new Date(iso);
+        return `${d.getDate().toString().padStart(2, '0')}.${(d.getMonth() + 1).toString().padStart(2, '0')} ${d.getHours()}:${d.getMinutes().toString().padStart(2, '0')}`;
+    }
+
+    function toggleSelectAll() {
+        const checked = document.getElementById('select-all').checked;
+        document.querySelectorAll('.batch-checkbox').forEach(cb => { cb.checked = checked; });
+        updateSelection();
+    }
+
+    function updateSelection() {
+        selectedBatches.clear();
+        document.querySelectorAll('.batch-checkbox:checked').forEach(cb => { selectedBatches.add(cb.value); });
+        updateButtons();
+    }
+
+    function updateButtons() {
+        const hasSelection = selectedBatches.size > 0;
+        document.getElementById('btn-reoptimize').disabled = !hasSelection;
+        document.getElementById('btn-publish').disabled = !hasSelection;
+    }
+
+    // Publish selected
+    async function publishSelected() {
+        if (selectedBatches.size === 0) return;
+        if (!confirm(`Czy na pewno chcesz opublikować ${selectedBatches.size} harmonogram(y)? Po publikacji będą widoczne dla nauczycieli i studentów.`)) return;
+
+        const res = await fetch('/api/schedule/publish', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ batchIds: Array.from(selectedBatches) })
+        });
+        const data = await res.json();
+
+        if (data.success) {
+            alert(`Opublikowano ${data.count} harmonogram(y).`);
+            loadDrafts();
+        } else {
+            alert('Błąd: ' + (data.error || 'Nieznany błąd'));
+        }
+    }
+
+    // Optimization Settings
+    function openSettingsModal() {
+        document.getElementById('settings-modal').style.display = 'flex';
+    }
+
+    function closeSettingsModal() {
+        document.getElementById('settings-modal').style.display = 'none';
+    }
+
+    async function reoptimizeSelected() {
+        if (selectedBatches.size === 0) return;
+        openSettingsModal();
+    }
+
+    async function runOptimization() {
+        closeSettingsModal();
+        document.getElementById('btn-reoptimize').disabled = true;
+        document.getElementById('btn-reoptimize').textContent = 'Optymalizowanie...';
+
+        const semester = document.getElementById('semester-select').value;
+        const weights = {
+            preferences: parseInt(document.getElementById('weight-pref').value),
+            teacher_gaps: parseInt(document.getElementById('weight-tgaps').value),
+            student_gaps: parseInt(document.getElementById('weight-sgaps').value)
+        };
+
+        try {
+            const res = await fetch('/api/schedule/reoptimize', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    batchIds: Array.from(selectedBatches),
+                    semester,
+                    weights
+                })
+            });
+            const data = await res.json();
+
+            if (data.success) {
+                showSuccess(`Zoptymalizowano ${data.count} harmonogram(y).`);
+                loadDrafts();
+            } else {
+                showError('Błąd: ' + (data.error || 'Nieznany błąd'));
+            }
+        } catch (e) {
+            showError('Wystąpił błąd podczas optymalizacji.');
+        } finally {
+            document.getElementById('btn-reoptimize').disabled = false;
+            document.getElementById('btn-reoptimize').textContent = '🔄 Optymalizuj zaznaczone';
+        }
+    }
+
+    // Delete draft
+    async function deleteDraft(id) {
+        if (!confirm('Czy na pewno chcesz usunąć ten harmonogram draft?')) return;
+        await fetch(`/api/schedule/batch/${id}`, { method: 'DELETE' });
+        loadDrafts();
+    }
+
+    // Conflicts handling
+    function showConflictsModal(data) {
+        let html = '<p style="margin-bottom: 1rem; color: var(--text-secondary);">Niektóre przedmioty nie mogły być w pełni zaplanowane. Wybierz dodatkowe terminy:</p>';
+
+        data.conflicts.forEach(c => {
+            html += `<div style="padding: 1rem; background: var(--bg-tertiary); border-radius: 8px; margin-bottom: 1rem;">
+            <div style="font-weight: 600; margin-bottom: 0.5rem;">📚 ${c.subjectName}</div>
+            <p style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 0.5rem;">
+                ${c.teacherName} • ${c.groupName} • ${c.hoursScheduled}/${c.hoursNeeded}h zaplanowano
+            </p>
+            <div style="display: flex; flex-wrap: wrap; gap: 0.5rem;" id="slots-${c.teacherSubjectId}">
+                ${c.suggestedSlots.map(s => `
+                    <button class="btn btn-sm btn-secondary" onclick="toggleSlot('${c.teacherSubjectId}', ${JSON.stringify(s).replace(/"/g, '&quot;')}, this)">
+                        T${s.week} ${DAYS[s.day].substring(0, 3)} ${s.hour}:00
+                    </button>
+                `).join('')}
+            </div>
+        </div>`;
+        });
+
+        document.getElementById('conflicts-content').innerHTML = html;
+        document.getElementById('conflicts-modal').style.display = 'flex';
+    }
+
+    function closeConflictsModal() {
+        document.getElementById('conflicts-modal').style.display = 'none';
+        // Clear conflicts content to prevent duplicates if opened again
+        document.getElementById('conflicts-content').innerHTML = '';
+    }
+
+    function toggleSlot(tsId, slot, btn) {
+        if (!resolvedConflicts[tsId]) resolvedConflicts[tsId] = [];
+        // Check if slot is already selected
+        const idx = resolvedConflicts[tsId].findIndex(s => s.week === slot.week && s.day === slot.day && s.hour === slot.hour);
+
+        if (idx >= 0) {
+            // Remove selection
+            resolvedConflicts[tsId].splice(idx, 1);
+            btn.classList.remove('btn-primary');
+            btn.classList.add('btn-secondary');
+        } else {
+            // Add selection
+            resolvedConflicts[tsId].push(slot);
+            btn.classList.remove('btn-secondary');
+            btn.classList.add('btn-primary');
+        }
+    }
+
+    async function applyConflictResolutions() {
+        closeConflictsModal();
+        await generateSchedule();
+    }
+
+    // Helpers
+    function showError(msg) { document.getElementById('error-text').textContent = msg; document.getElementById('error-msg').style.display = 'flex'; }
+    function showSuccess(msg) { document.getElementById('success-text').textContent = msg; document.getElementById('success-msg').style.display = 'flex'; }
+    function hideMessages() { document.getElementById('error-msg').style.display = 'none'; document.getElementById('success-msg').style.display = 'none'; }
+
+    // Preview draft - open schedule page in new window
+    function previewDraft(groupId, semester) {
+        // Store the preview info and open schedule page
+        window.open(`/dashboard/schedule?group=${groupId}&semester=${semester}`, '_blank');
+    }
+
+    // Init
+    loadGroups();
+    const month = new Date().getMonth() + 1;
+    if (month >= 3 && month <= 7) document.getElementById('semester-select').value = 'SUMMER';
+</script>
+{% endblock %}

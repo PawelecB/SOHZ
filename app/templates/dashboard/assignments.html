@@ -1,0 +1,115 @@
+{% extends "dashboard/layout.html" %}
+
+{% block dashboard_content %}
+<div>
+    <div class="page-header" style="display: flex; justify-content: space-between; align-items: flex-start;">
+        <div>
+            <h1 class="page-title">Przypisania</h1>
+            <p class="page-subtitle">Przypisuj nauczycieli do przedmiotów i grup</p>
+        </div>
+        <button class="btn btn-primary" onclick="openModal()">+ Dodaj przypisanie</button>
+    </div>
+
+    <div class="card">
+        <div class="table-container">
+            <table class="table">
+                <thead>
+                    <tr>
+                        <th>Prowadzący</th>
+                        <th>Przedmiot</th>
+                        <th>Grupa</th>
+                        <th>Akcje</th>
+                    </tr>
+                </thead>
+                <tbody id="assignments-tbody">
+                    <tr>
+                        <td colspan="4" class="text-center text-muted" style="padding: 2rem;">Ładowanie...</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<div id="modal-overlay" class="modal-overlay" style="display: none;" onclick="closeModal()">
+    <div class="modal" onclick="event.stopPropagation()">
+        <div class="modal-header">
+            <h3 class="modal-title" id="modal-title">Nowe przypisanie</h3>
+            <button class="modal-close" onclick="closeModal()">×</button>
+        </div>
+        <form id="assignment-form" onsubmit="saveAssignment(event)">
+            <input type="hidden" id="assignment-id">
+            <div class="form-group">
+                <label class="label">Prowadzący</label>
+                <select class="select" id="teacher-select" required></select>
+            </div>
+            <div class="form-group">
+                <label class="label">Przedmiot</label>
+                <select class="select" id="subject-select" required></select>
+            </div>
+            <div class="form-group">
+                <label class="label">Grupa</label>
+                <select class="select" id="group-select" required></select>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" onclick="closeModal()">Anuluj</button>
+                <button type="submit" class="btn btn-primary">Zapisz</button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    let editingId = null;
+    let teachers = [], subjects = [], groups = [];
+
+    async function loadData() {
+        const [teachersRes, subjectsRes, groupsRes, assignmentsRes] = await Promise.all([
+            fetch('/api/teachers'), fetch('/api/subjects'), fetch('/api/groups'), fetch('/api/assignments')
+        ]);
+        teachers = await teachersRes.json();
+        subjects = await subjectsRes.json();
+        groups = await groupsRes.json();
+        const assignments = await assignmentsRes.json();
+
+        document.getElementById('teacher-select').innerHTML = teachers.map(t => `<option value="${t.id}">${t.name}</option>`).join('');
+        document.getElementById('subject-select').innerHTML = subjects.map(s => `<option value="${s.id}">${s.name}</option>`).join('');
+        document.getElementById('group-select').innerHTML = groups.map(g => `<option value="${g.id}">${g.name}</option>`).join('');
+
+        renderAssignments(assignments);
+    }
+
+    function renderAssignments(assignments) {
+        const tbody = document.getElementById('assignments-tbody');
+        if (assignments.length === 0) { tbody.innerHTML = '<tr><td colspan="4" class="text-center text-muted" style="padding: 2rem;">Brak przypisań.</td></tr>'; return; }
+        tbody.innerHTML = assignments.map(a => `
+        <tr>
+            <td style="font-weight: 500;">${a.teacher?.name || 'N/A'}</td>
+            <td><span class="badge ${a.subject?.type === 'LAB' ? 'badge-success' : 'badge-primary'}">${a.subject?.name || 'N/A'}</span></td>
+            <td><span class="badge badge-secondary">${a.group?.name || 'N/A'}</span></td>
+            <td><button class="btn btn-danger btn-sm" onclick="deleteAssignment('${a.id}')">Usuń</button></td>
+        </tr>
+    `).join('');
+    }
+
+    function openModal() { editingId = null; document.getElementById('modal-title').textContent = 'Nowe przypisanie'; document.getElementById('assignment-form').reset(); document.getElementById('modal-overlay').style.display = 'flex'; }
+    function closeModal() { document.getElementById('modal-overlay').style.display = 'none'; }
+
+    async function saveAssignment(e) {
+        e.preventDefault();
+        const data = {
+            teacherId: document.getElementById('teacher-select').value,
+            subjectId: document.getElementById('subject-select').value,
+            groupId: document.getElementById('group-select').value
+        };
+        await fetch('/api/assignments', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) });
+        closeModal(); loadData();
+    }
+
+    async function deleteAssignment(id) { if (!confirm('Czy na pewno chcesz usunąć to przypisanie?')) return; await fetch(`/api/assignments/${id}`, { method: 'DELETE' }); loadData(); }
+
+    loadData();
+</script>
+{% endblock %}
