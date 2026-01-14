@@ -7,6 +7,19 @@
     {% include "components/sidebar.html" %}
 
     <main class="main-content">
+        <div class="main-header">
+            <div class="main-header-user">
+                <span class="user-display-name">{{ current_user.name }}</span>
+                <span class="user-display-role">
+                    {% if current_user.role == 'ADMIN' %}Dziekanat{% elif current_user.role == 'TEACHER' %}Pracownik{%
+                    else %}Student{% endif %}
+                </span>
+                <a href="{{ url_for('auth.logout') }}" class="btn btn-secondary btn-sm" style="margin-left: 1rem;"
+                    title="Wyloguj się">
+                    🚪 Wyloguj
+                </a>
+            </div>
+        </div>
         {% block dashboard_content %}{% endblock %}
     </main>
 </div>
