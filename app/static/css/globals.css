@@ -465,6 +465,17 @@ a:hover {
   text-align: center;
 }
 
+.sidebar-link-highlight {
+  background: rgba(99, 102, 241, 0.1);
+  border: 1px solid rgba(99, 102, 241, 0.3);
+  margin-top: 0.5rem;
+  font-weight: 600;
+}
+
+.sidebar-link-highlight:hover {
+  background: rgba(99, 102, 241, 0.2);
+}
+
 .main-content {
   flex: 1;
   margin-left: 260px;
@@ -515,11 +526,12 @@ a:hover {
 }
 
 .user-name {
-  font-weight: 500;
+  font-weight: 600;
   font-size: 0.9rem;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  white-space: normal;
+  word-break: break-word;
+  line-height: 1.2;
+  margin-bottom: 2px;
 }
 
 .user-role {

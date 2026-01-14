@@ -11,7 +11,7 @@
     <div
         style="display: flex; gap: 0.5rem; margin-bottom: 1.5rem; border-bottom: 1px solid var(--border); padding-bottom: 0.5rem;">
         <button class="btn btn-primary" id="tab-generate" onclick="switchTab('generate')">➕ Generuj nowy</button>
-        <button class="btn btn-secondary" id="tab-drafts" onclick="switchTab('drafts')">📝 Draft harmonogramy</button>
+        <button class="btn btn-secondary" id="tab-drafts" onclick="switchTab('drafts')">📝 Draft harmonogramów</button>
     </div>
 
     <!-- Generate Tab -->
@@ -209,7 +209,7 @@
             if (data.conflicts && data.conflicts.length > 0) {
                 showConflictsModal(data);
             } else {
-                showSuccess(`Harmonogram dla grupy ${data.group.name} został wygenerowany jako DRAFT. Przejdź do zakładki "Draft harmonogramy" aby opublikować.`);
+                showSuccess(`Harmonogram dla grupy ${data.group.name} został wygenerowany jako DRAFT. Przejdź do zakładki "Draft harmonogramów" aby opublikować.`);
                 resolvedConflicts = {};
             }
         } catch (e) { showError('Wystąpił błąd podczas generowania harmonogramu.'); }

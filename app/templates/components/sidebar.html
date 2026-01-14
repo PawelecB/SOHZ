@@ -52,7 +52,7 @@
             </a>
 
             <a href="{{ url_for('dashboard.generate') }}"
-                class="sidebar-link {% if request.endpoint == 'dashboard.generate' %}active{% endif %}">
+                class="sidebar-link sidebar-link-highlight {% if request.endpoint == 'dashboard.generate' %}active{% endif %}">
                 <span class="sidebar-link-icon">⚡</span>
                 Generuj plan
             </a>
