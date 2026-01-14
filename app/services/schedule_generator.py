@@ -286,8 +286,14 @@ def generate_schedule(group_id, semester=None, resolved_conflicts=None, existing
         # Ensure at least 1 slot per week allowed if weeks could be skipped due to interval
         if max_slots_per_week < 1: max_slots_per_week = 1
         
-        # Strict daily limit requested by user
-        MAX_DAILY_SLOTS = 2
+        # Strict daily limit for THIS SUBJECT (max 2 blocks of same subject per day)
+        MAX_DAILY_SLOTS_PER_SUBJECT = 2
+        
+        # Daily limit for ENTIRE GROUP (max 5 blocks total per day) - can be relaxed if needed
+        MAX_DAILY_SLOTS_FOR_GROUP = 5
+        
+        # Track if we need to relax group daily limit (fallback mode)
+        relax_group_limit = False
         
         while slots_scheduled < slots_needed and week_offset < WEEKS_PER_SEMESTER * 2:
             best_candidate = None
@@ -312,10 +318,17 @@ def generate_schedule(group_id, semester=None, resolved_conflicts=None, existing
                     day = slot_info['day']
                     slot = slot_info['slot']
                     
-                    # Check daily limit for this subject
-                    slots_this_day = sum(1 for e in current_assignment_entries if e.week_number == week and e.day_of_week == day)
-                    if slots_this_day >= MAX_DAILY_SLOTS:
+                    # Check daily limit for this subject (max 2 blocks of same subject)
+                    slots_this_day_subject = sum(1 for e in current_assignment_entries if e.week_number == week and e.day_of_week == day)
+                    if slots_this_day_subject >= MAX_DAILY_SLOTS_PER_SUBJECT:
                         continue
+                    
+                    # Check daily limit for entire group (max 5 blocks total)
+                    # Only enforce if not in fallback mode
+                    if not relax_group_limit:
+                        group_slots_this_day = sum(1 for e in schedule if e.group_id == assignment.group_id and e.week_number == week and e.day_of_week == day)
+                        if group_slots_this_day >= MAX_DAILY_SLOTS_FOR_GROUP:
+                            continue
                     
                     base_pref = slot_info['score']
                     
@@ -386,8 +399,15 @@ def generate_schedule(group_id, semester=None, resolved_conflicts=None, existing
                                  c['week'], c['day'], c['slot'])
                 slots_scheduled += 1
             else:
-                # If no slot found in entire semester for this offset, increase offset and try again
-                week_offset += 1
+                # No slot found with current constraints
+                # FALLBACK: If we haven't relaxed the group limit yet, try relaxing it
+                if not relax_group_limit:
+                    relax_group_limit = True
+                    # Don't increment week_offset, retry with relaxed limit
+                    continue
+                else:
+                    # Already in fallback mode - increase offset and try again
+                    week_offset += 1
         
         # Create conflict if not all scheduled
         if slots_scheduled < slots_needed:
