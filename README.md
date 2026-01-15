@@ -9,7 +9,7 @@ Projekt został zbudowany przy użyciu następujących technologii:
 - **Backend:** Python (Flask 3.0)
 - **Baza danych:** SQLite z wykorzystaniem SQLAlchemy (ORM)
 - **Frontend:** Jinja2 (Templates), Vanilla JavaScript, CSS (modern design system)
-- **Autentykacja:** Flask-Login z hashowaniem haseł (Bcrypt)
+- **Uwierzytelnienie:** Flask-Login z hashowaniem haseł (Bcrypt)
 
 ## 🧠 Algorytm Optymalizacji
 
